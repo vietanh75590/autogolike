@@ -59,6 +59,28 @@ class MobileRuntimeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--config', result.stdout)
 
+    def test_version_rejection_stops_without_retry_and_releases_wake_lock(self):
+        config = {'token': 'test-only', 'platform': 'tiktok', 'account_id': 1}
+        reply = (200, {'status': 400, 'message': 'Vui lòng tải lại trang để cập nhật phiên bản mới nhất.'}, '')
+        with patch.object(bot, 'http_request', return_value=reply) as http, \
+                patch.object(bot, 'set_wake_lock') as wake, \
+                patch.object(bot.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(ValueError, 'cập nhật client'):
+                bot.GolikeBot(config).run()
+            self.assertEqual(http.call_count, 1)
+            sleep.assert_not_called()
+            self.assertEqual(wake.call_args_list[-1].args, (False,))
+
+    def test_no_jobs_remains_retryable(self):
+        with patch.object(bot, 'http_request', return_value=(200, {'message': 'Không có nhiệm vụ'}, '')):
+            self.assertIsNone(bot.GolikeBot({'token': 'test-only'}).get_job())
+
+    def test_observed_client_headers_can_be_configured(self):
+        with patch.dict(os.environ, {'GOLIKE_APP_VERSION': 'observed-version', 'GOLIKE_APP_CLIENT': 'observed-client'}):
+            headers = bot.make_headers('test-only')
+            self.assertEqual(headers['g-version'], 'observed-version')
+            self.assertEqual(headers['g-client'], 'observed-client')
+
     def test_check_does_not_read_config_or_call_api(self):
         with patch.object(bot.sys, 'argv', ['golike_bot.py', '--check']), \
                 patch.object(bot.ConfigManager, 'load') as load, \

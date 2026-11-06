@@ -135,8 +135,8 @@ def make_headers(token: str, device_id: Optional[str] = None) -> Dict[str, str]:
         "referer": "https://app.golike.net/",
         "user-agent": MOBILE_UA,
         "g-device-id": did,
-        "g-version": APP_VERSION,
-        "g-client": APP_CLIENT,
+        "g-version": os.environ.get("GOLIKE_APP_VERSION", APP_VERSION),
+        "g-client": os.environ.get("GOLIKE_APP_CLIENT", APP_CLIENT),
         "sec-ch-ua": '"Not;A=Brand";v="8", "Chromium";v="150", "Google Chrome";v="150"',
         "sec-ch-ua-mobile": "?1",
         "sec-ch-ua-platform": '"Android"',
@@ -341,16 +341,26 @@ class GolikeBot:
         if status == 200 and (res.get("status") == 200 or res.get("success")) and res.get("data"):
             return res["data"]
         else:
-            msg = res.get("message") or res.get("error") or "Không có nhiệm vụ"
-            if "tải lại trang để cập nhật phiên bản" in msg or "Bản web đã dừng" in msg:
-                print(f"\n{Fore.RED}" + "=" * 54)
-                print(f"{Fore.RED + Style.BRIGHT}[!] THÔNG BÁO TỪ MÁY CHỦ GOLIKE:")
-                print(f"{Fore.YELLOW}  • Máy chủ Golike báo: {msg}")
-                print(f"{Fore.YELLOW}  • Token hiện tại của bạn có thể là token web hoặc nick bị giới hạn.")
-                print(f"{Fore.CYAN}  • Đang tự động thử lại sau 15 giây...")
-                print(f"{Fore.RED}" + "=" * 54 + "\n")
+            msg = str(res.get("message") or res.get("error") or "Không có nhiệm vụ")
+            normalized = msg.casefold()
+            if "cập nhật phiên bản" in normalized or "bản web đã dừng" in normalized:
+                raise ValueError(
+                    f"Golike yêu cầu cập nhật client (HTTP {status}): {msg}\n"
+                    "Đã dừng để tránh thử lại vô hạn. Thông báo này chưa chứng minh token sai "
+                    "hoặc tài khoản bị giới hạn. Hãy thử lấy nhiệm vụ trên Golike chính thức.\n"
+                    "Header hiện tại: g-version=" + os.environ.get("GOLIKE_APP_VERSION", APP_VERSION)
+                    + "; g-client=" + os.environ.get("GOLIKE_APP_CLIENT", APP_CLIENT)
+                    + ". Chỉ cấu hình lại bằng giá trị từ request chính thức đang hoạt động."
+                )
+            if status in (401, 403) or res.get("status") in (401, 403):
+                raise ValueError(
+                    f"Golike từ chối truy cập (HTTP {status}): {msg}. "
+                    "Kiểm tra tài khoản trên Golike chính thức; nếu phiên hết hạn, chạy bash run.sh --config."
+                )
+            if status == 0:
+                print(f"[{log_time()}] {Fore.YELLOW}[MẠNG] Không kết nối được Golike; kiểm tra Internet, ngày giờ và TLS.")
             else:
-                print(f"[{log_time()}] {Fore.YELLOW}[THÔNG BÁO] {msg}{Style.RESET_ALL}")
+                print(f"[{log_time()}] {Fore.YELLOW}[HTTP {status}] {msg}{Style.RESET_ALL}")
             return None
 
     def submit_job(self, job: Dict[str, Any]) -> Tuple[bool, str, int]:
@@ -655,6 +665,8 @@ def check_environment() -> None:
     print("TLS:", ssl.OPENSSL_VERSION)
     print("Mã nguồn:", Path(__file__).resolve())
     print("Cấu hình:", CONFIG_FILE)
+    print("g-version:", os.environ.get("GOLIKE_APP_VERSION", APP_VERSION))
+    print("g-client:", os.environ.get("GOLIKE_APP_CLIENT", APP_CLIENT))
     print("Môi trường:", "Termux/Android" if is_termux_env() else "Máy tính")
     if is_termux_env():
         for command in ("termux-open-url", "am", "termux-wake-lock"):

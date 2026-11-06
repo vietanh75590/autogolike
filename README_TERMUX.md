@@ -81,3 +81,13 @@ bash run.sh
 Ghi lại đường dẫn `Mã nguồn` do `--check` hiển thị. Lần sau mở Termux, `cd` vào thư mục đó rồi `bash run.sh`. Bản cài riêng sẽ hỏi cấu hình lại; không xóa hoặc chép đè thư mục cũ. Mỗi lần chạy lại đoạn cài riêng sẽ tạo một thư mục mới.
 
 `bash run.sh --check` chỉ kiểm tra cục bộ, không đọc token hoặc gọi API. Nếu kiểm tra này qua nhưng đăng nhập lỗi, gửi thông báo HTTP (che token), thay vì cài thêm thư viện pip.
+
+## Máy chủ yêu cầu cập nhật phiên bản
+
+Đây là phản hồi API, không phải lỗi cài thư viện. Bot sẽ dừng thay vì thử lại mỗi 15 giây. Thông báo này không đủ để kết luận token sai hay tài khoản bị giới hạn.
+
+1. Thử lấy nhiệm vụ trên ứng dụng/trang Golike chính thức trước.
+2. Nếu chính thức cũng lỗi, xử lý với dịch vụ Golike; cài lại Python không giải quyết được.
+3. Nếu chính thức hoạt động, cần đối chiếu request thành công với client này. Header mặc định trong mã chưa được xác minh với phiên bản máy chủ hiện tại. Khi đã có giá trị `g-version` và `g-client` thực tế từ request của chính bạn, có thể đặt `GOLIKE_APP_VERSION` và `GOLIKE_APP_CLIENT` bằng `export` trong Termux trước khi chạy. `bash run.sh --check` hiển thị giá trị đang dùng.
+
+Không đoán phiên bản, không gửi token/cookie lên GitHub hoặc vào ảnh chụp. Đổi header không đảm bảo API chấp nhận; có thể còn thay đổi giao thức cần điều tra.
