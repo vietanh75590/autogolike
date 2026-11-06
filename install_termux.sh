@@ -1,16 +1,13 @@
-#!/data/data/com.termux/files/usr/bin/bash
-echo "=========================================================="
-echo "    CÀI ĐẶT MÔI TRƯỜNG CHO GOLIKE AUTO BOT TRÊN TERMUX"
-echo "=========================================================="
-
+#!/usr/bin/env bash
+set -euo pipefail
+cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
+if ! command -v pkg >/dev/null 2>&1; then
+    echo "Script này dành cho Termux trên Android. Trên máy tính cài Python 3.9+ rồi chạy bash run.sh."
+    exit 1
+fi
 pkg update -y
-# Cài đặt python và python-cryptography bản dựng sẵn của Termux (tránh lỗi build rust)
-pkg install -y python python-cryptography termux-api termux-tools libffi openssl
-
-pip install --upgrade pip
-pip install requests colorama golike-gauth
-
-echo "=========================================================="
-echo "    CÀI ĐẶT THÀNH CÔNG!"
-echo "    Khởi động bot: python golike_bot.py"
-echo "=========================================================="
+pkg install -y python termux-tools ca-certificates
+# Chỉ dùng thư viện chuẩn; không cần pip, Rust hoặc Termux:API.
+python -c 'import ssl, urllib.request; print("Python và TLS sẵn sàng:", ssl.OPENSSL_VERSION)'
+python golike_bot.py --help >/dev/null
+echo "Cài đặt hoàn tất. Chạy: bash run.sh"

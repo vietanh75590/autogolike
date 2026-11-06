@@ -9,9 +9,11 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime
+import getpass
 import json
 import os
 import random
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -40,7 +42,7 @@ class Style:
     RESET_ALL = "\033[0m"
 
 
-CONFIG_FILE = "config.json"
+CONFIG_FILE = str(Path(__file__).resolve().with_name("config.json"))
 BASE_API = "https://gateway.golike.net/api"
 APP_VERSION = "26.10.27.1"
 APP_CLIENT = "109096667105508"
@@ -200,7 +202,7 @@ def open_job_url(url: str) -> bool:
     if is_termux_env():
         try:
             res = subprocess.run(
-                ["am", "start", "-a", "android.intent.action.VIEW", "-d", url],
+                ["termux-open-url", url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
@@ -212,7 +214,7 @@ def open_job_url(url: str) -> bool:
 
         try:
             res = subprocess.run(
-                ["termux-open-url", url],
+                ["am", "start", "-a", "android.intent.action.VIEW", "-d", url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 timeout=5,
@@ -223,8 +225,7 @@ def open_job_url(url: str) -> bool:
             pass
 
     try:
-        webbrowser.open(url)
-        return True
+        return bool(webbrowser.open(url))
     except Exception:
         return False
 
@@ -257,7 +258,10 @@ class ConfigManager:
         if os.path.exists(CONFIG_FILE):
             try:
                 with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                    return json.load(f)
+                    cfg = json.load(f)
+                    if not isinstance(cfg, dict):
+                        raise ValueError("Cấu hình phải là một JSON object")
+                    return cfg
             except Exception as e:
                 print(f"{Fore.RED}[!] Lỗi đọc file {CONFIG_FILE}: {e}")
         return {}
@@ -265,7 +269,10 @@ class ConfigManager:
     @staticmethod
     def save(cfg: Dict[str, Any]) -> None:
         try:
-            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            fd = os.open(CONFIG_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                if os.name != "nt":
+                    os.fchmod(f.fileno(), 0o600)
                 json.dump(cfg, f, ensure_ascii=False, indent=2)
             print(f"{Fore.GREEN}[OK] Đã lưu cấu hình vào {CONFIG_FILE}")
         except Exception as e:
@@ -503,14 +510,14 @@ def setup_interactive() -> Dict[str, Any]:
     # 1. Nhập Token
     old_token = cfg.get("token", "")
     if old_token:
-        print(f"{Fore.CYAN}Token hiện tại: {Fore.YELLOW}{old_token[:15]}...{old_token[-8:]}")
+        print(f"{Fore.CYAN}Đã có token được lưu trên máy.")
         use_old = input(f"Dùng lại Token này? (y/n, mặc định y): ").strip().lower()
         if use_old == "n":
-            token = input(f"{Fore.GREEN}Dán Authorization Token Golike mới: {Style.RESET_ALL}").strip()
+            token = getpass.getpass(f"{Fore.GREEN}Dán Authorization Token Golike mới (ẩn khi nhập): {Style.RESET_ALL}").strip()
         else:
             token = old_token
     else:
-        token = input(f"{Fore.GREEN}Dán Authorization Token Golike: {Style.RESET_ALL}").strip()
+        token = getpass.getpass(f"{Fore.GREEN}Dán Authorization Token Golike (ẩn khi nhập): {Style.RESET_ALL}").strip()
 
     token = token.strip().strip("'\"")
     if token.lower().startswith("bearer "):
@@ -673,7 +680,7 @@ def main() -> None:
         if len(sys.argv) == 1:
             print_banner()
             print(f"{Fore.CYAN}Đã tìm thấy cấu hình đã lưu (Chế độ Auto Submit - Không hỏi lại):")
-            print(f"  • Token          : {Fore.YELLOW}{cfg.get('token', '')[:10]}...{cfg.get('token', '')[-6:]}")
+            print(f"  • Token          : {Fore.YELLOW}Đã lưu (ẩn)")
             print(f"  • Nền tảng       : {Fore.GREEN}{cfg.get('platform', 'tiktok')}")
             print(f"  • Tài khoản      : {Fore.GREEN}{cfg.get('account_name', '')} (ID: {cfg.get('account_id')})")
             d_min = cfg.get("claim_delay_min", 12)
