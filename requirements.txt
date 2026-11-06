@@ -1,0 +1,5 @@
+requests>=2.28.0
+colorama>=0.4.6
+cryptography>=41.0.0
+golike-gauth>=0.1.15
+

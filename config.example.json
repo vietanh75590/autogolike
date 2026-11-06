@@ -1,0 +1,14 @@
+{
+  "token": "",
+  "platform": "tiktok",
+  "account_id": 0,
+  "account_name": "",
+  "claim_delay_min": 10,
+  "claim_delay_max": 10,
+  "job_interval": 5,
+  "auto_open_link": true,
+  "auto_skip_failed": true,
+  "max_jobs": 0,
+  "max_retries": 3,
+  "retry_delay": 4
+}
