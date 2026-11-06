@@ -13,10 +13,11 @@ cd ~
 git clone https://github.com/vietanh75590/autogolike.git
 cd autogolike
 bash install_termux.sh
+bash run.sh --check
 bash run.sh
 ```
 
-Nếu đã clone trước đó, xem mục cập nhật trong hướng dẫn Termux.
+Nếu đã clone trước đó, xem mục cập nhật trong hướng dẫn Termux. Nếu vẫn gặp lỗi `colorama` hoặc `cryptography`, dùng mục “Nếu vẫn thấy lỗi” để cài bản mới vào thư mục riêng và giữ nguyên dữ liệu cũ.
 
 ## Máy tính
 

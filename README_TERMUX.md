@@ -63,3 +63,21 @@ Lệnh cập nhật giữ `config.json` cá nhân vì file này được Git b�
 - HTTP 401/403 hoặc token hết hạn: chạy `bash run.sh --config` để nhập lại token. Lỗi giới hạn phiên bản, captcha hoặc từ chối API cần được giải quyết với dịch vụ Golike.
 
 Mở liên kết không tự thực hiện thao tác like/follow trên ứng dụng. Mã hiện tại không giải captcha hoặc tạo chữ ký `g-auth`. Khả năng nhận nhiệm vụ/nhận thưởng phụ thuộc API và tài khoản; không được đảm bảo chỉ bằng việc cài thành công trên Termux.
+
+## Nếu vẫn thấy lỗi colorama / cryptography / maturin
+
+Bạn đang chạy bản cũ hoặc một thư mục khác. Bản hiện tại không import các gói này. Để giữ toàn bộ dữ liệu cũ và tải bản mới riêng biệt, chạy:
+
+```bash
+pkg update -y && pkg install -y git
+mobile_dir=$(mktemp -d "$HOME/autogolike-mobile.XXXXXX") &&
+git clone https://github.com/vietanh75590/autogolike.git "$mobile_dir" &&
+cd "$mobile_dir" &&
+bash install_termux.sh &&
+bash run.sh --check &&
+bash run.sh
+```
+
+Ghi lại đường dẫn `Mã nguồn` do `--check` hiển thị. Lần sau mở Termux, `cd` vào thư mục đó rồi `bash run.sh`. Bản cài riêng sẽ hỏi cấu hình lại; không xóa hoặc chép đè thư mục cũ. Mỗi lần chạy lại đoạn cài riêng sẽ tạo một thư mục mới.
+
+`bash run.sh --check` chỉ kiểm tra cục bộ, không đọc token hoặc gọi API. Nếu kiểm tra này qua nhưng đăng nhập lỗi, gửi thông báo HTTP (che token), thay vì cài thêm thư viện pip.

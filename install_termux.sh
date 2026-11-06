@@ -9,5 +9,5 @@ pkg update -y
 pkg install -y python termux-tools ca-certificates
 # Chỉ dùng thư viện chuẩn; không cần pip, Rust hoặc Termux:API.
 python -c 'import ssl, urllib.request; print("Python và TLS sẵn sàng:", ssl.OPENSSL_VERSION)'
-python golike_bot.py --help >/dev/null
+python golike_bot.py --check
 echo "Cài đặt hoàn tất. Chạy: bash run.sh"

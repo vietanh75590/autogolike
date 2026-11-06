@@ -13,6 +13,8 @@ import getpass
 import json
 import os
 import random
+import shutil
+import ssl
 from pathlib import Path
 import subprocess
 import sys
@@ -174,14 +176,14 @@ def http_request(
                 data = json.loads(raw_text)
             except Exception:
                 data = {}
-            return status_code, data, raw_text
+            return status_code, data if isinstance(data, dict) else {}, raw_text
     except urllib.error.HTTPError as e:
         raw_text = e.read().decode("utf-8", errors="replace")
         try:
             data = json.loads(raw_text)
         except Exception:
             data = {}
-        return e.code, data, raw_text
+        return e.code, data if isinstance(data, dict) else {}, raw_text
     except Exception as e:
         return 0, {}, str(e)
 
@@ -644,6 +646,43 @@ def setup_interactive() -> Dict[str, Any]:
     return new_cfg
 
 
+def check_environment() -> None:
+    """Kiểm tra cục bộ, không đọc token hoặc gọi API."""
+    if sys.version_info < (3, 9):
+        raise ValueError("Cần Python 3.9 trở lên. Trong Termux: pkg install python")
+    ssl.create_default_context()
+    print("Python:", sys.version.split()[0])
+    print("TLS:", ssl.OPENSSL_VERSION)
+    print("Mã nguồn:", Path(__file__).resolve())
+    print("Cấu hình:", CONFIG_FILE)
+    print("Môi trường:", "Termux/Android" if is_termux_env() else "Máy tính")
+    if is_termux_env():
+        for command in ("termux-open-url", "am", "termux-wake-lock"):
+            print(command + ":", "có" if shutil.which(command) else "không có")
+    print("Kiểm tra cục bộ hoàn tất; chưa xác minh API hoặc mở ứng dụng thật.")
+
+
+def validate_config(cfg: Dict[str, Any]) -> None:
+    if not isinstance(cfg.get("token"), str) or not cfg["token"].strip():
+        raise ValueError("Thiếu token. Chạy bash run.sh --config để thiết lập.")
+    if cfg.get("platform") not in {p["key"] for p in PLATFORMS.values()}:
+        raise ValueError("Nền tảng không hợp lệ. Chạy bash run.sh --config.")
+    try:
+        if int(cfg.get("account_id") or 0) <= 0:
+            raise ValueError
+    except (ValueError, TypeError):
+        raise ValueError("Chưa chọn tài khoản hợp lệ. Chạy bash run.sh --config.") from None
+    for key in ("claim_delay_min", "claim_delay_max", "job_interval", "max_jobs", "max_retries", "retry_delay"):
+        if key in cfg:
+            try:
+                if isinstance(cfg[key], bool) or int(cfg[key]) < 0:
+                    raise ValueError
+            except (ValueError, TypeError):
+                raise ValueError(f"{key} phải là số nguyên không âm. Chạy bash run.sh --config.") from None
+    if int(cfg.get("claim_delay_min", 12)) > int(cfg.get("claim_delay_max", 15)):
+        raise ValueError("Thời gian chờ nhỏ nhất phải không lớn hơn thời gian lớn nhất.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Golike Auto Job & Auto Submit Bot for Termux & PC (Zero Dependencies)")
     parser.add_argument("--token", help="Golike Authorization Token")
@@ -651,14 +690,26 @@ def main() -> None:
     parser.add_argument("--account-id", type=int, help="Account ID làm nhiệm vụ")
     parser.add_argument("--delay", type=int, help="Thời gian chờ auto submit cố định (giây)")
     parser.add_argument("--interval", type=int, help="Thời gian nghỉ giữa các nhiệm vụ (giây)")
-    parser.add_argument("--max-jobs", type=int, default=0, help="Số nhiệm vụ tối đa cần làm (0 = vô hạn)")
+    parser.add_argument("--max-jobs", type=int, help="Số nhiệm vụ tối đa cần làm (0 = vô hạn)")
     parser.add_argument("--open-link", action="store_true", help="Tự động mở App trên điện thoại")
     parser.add_argument("--config", action="store_true", help="Vào cài đặt cấu hình mới")
+    parser.add_argument("--check", action="store_true", help="Kiểm tra môi trường, không gọi API hoặc đọc token")
     args = parser.parse_args()
+    if args.check:
+        check_environment()
+        return
+    for name in ("delay", "interval", "max_jobs"):
+        value = getattr(args, name)
+        if value is not None and value < 0:
+            parser.error(f"--{name.replace('_', '-')} phải không âm")
+    if args.account_id is not None and args.account_id <= 0:
+        parser.error("--account-id phải lớn hơn 0")
 
     cfg = ConfigManager.load()
+    if args.token:
+        cfg["token"] = args.token
 
-    if args.config or not cfg.get("token"):
+    if args.config or not cfg.get("token") or not cfg.get("account_id"):
         cfg = setup_interactive()
     else:
         if args.token:
@@ -667,12 +718,12 @@ def main() -> None:
             cfg["platform"] = args.platform
         if args.account_id:
             cfg["account_id"] = args.account_id
-        if args.delay:
+        if args.delay is not None:
             cfg["claim_delay_min"] = args.delay
             cfg["claim_delay_max"] = args.delay
-        if args.interval:
+        if args.interval is not None:
             cfg["job_interval"] = args.interval
-        if args.max_jobs:
+        if args.max_jobs is not None:
             cfg["max_jobs"] = args.max_jobs
         if args.open_link:
             cfg["auto_open_link"] = True
@@ -691,9 +742,17 @@ def main() -> None:
             print(f"{Fore.GREEN}🚀 Tự động khởi động bot ngay...\n")
             time.sleep(1)
 
+    validate_config(cfg)
     bot = GolikeBot(cfg)
     bot.run()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (KeyboardInterrupt, EOFError):
+        print("\nĐã dừng. Chạy bash run.sh để mở lại.")
+        sys.exit(130)
+    except (ValueError, OSError) as exc:
+        print(f"[LỖI] {exc}", file=sys.stderr)
+        sys.exit(1)

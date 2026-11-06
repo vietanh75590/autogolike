@@ -59,6 +59,41 @@ class MobileRuntimeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('--config', result.stdout)
 
+    def test_check_does_not_read_config_or_call_api(self):
+        with patch.object(bot.sys, 'argv', ['golike_bot.py', '--check']), \
+                patch.object(bot.ConfigManager, 'load') as load, \
+                patch.object(bot, 'http_request') as http:
+            bot.main()
+            load.assert_not_called()
+            http.assert_not_called()
+
+    def test_zero_cli_overrides_saved_limits(self):
+        cfg = {'token': 'test-only', 'platform': 'tiktok', 'account_id': 1,
+               'job_interval': 5, 'max_jobs': 10}
+        with patch.object(bot.sys, 'argv', ['golike_bot.py', '--interval', '0', '--max-jobs', '0']), \
+                patch.object(bot.ConfigManager, 'load', return_value=cfg), \
+                patch.object(bot, 'GolikeBot') as runner:
+            bot.main()
+            self.assertEqual(runner.call_args.args[0]['job_interval'], 0)
+            self.assertEqual(runner.call_args.args[0]['max_jobs'], 0)
+            runner.return_value.run.assert_called_once()
+
+    def test_invalid_config_reports_actionable_error(self):
+        with self.assertRaisesRegex(ValueError, '--config'):
+            bot.validate_config({'token': 'test-only', 'platform': 'tiktok', 'account_id': 0})
+
+    def test_installer_success_with_simulated_termux_packages(self):
+        with tempfile.TemporaryDirectory() as folder:
+            pkg = Path(folder) / 'pkg'
+            pkg.write_text('#!/bin/sh\nexit 0\n')
+            pkg.chmod(0o700)
+            result = subprocess.run(['bash', str(ROOT / 'install_termux.sh')],
+                                    env={**os.environ, 'PATH': folder + os.pathsep + os.environ['PATH']},
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('Cài đặt hoàn tất', result.stdout)
+            self.assertIn('TLS:', result.stdout)
+
     def test_installer_stops_when_package_update_fails(self):
         with tempfile.TemporaryDirectory() as folder:
             pkg = Path(folder) / 'pkg'
